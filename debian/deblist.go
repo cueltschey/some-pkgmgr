@@ -11,6 +11,7 @@ import (
   "bufio"
   "database/sql"
   "strings"
+  "time"
 
   _ "github.com/mattn/go-sqlite3"
 )
@@ -68,9 +69,8 @@ const insertPackageSQL = `
         Priority, Filename, Size, MD5sum, SHA256
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 `
-
 func UpdatePackages(uriBase string, outputDir string, DbPath string) {
-  // Step one: install Packages file into TmpDir
+
   archToURL := map[string]string{
 		"amd64":   "binary-amd64",
 		"arm64":   "binary-arm64",
@@ -79,21 +79,31 @@ func UpdatePackages(uriBase string, outputDir string, DbPath string) {
 		"ppc64":   "binary-ppc64",
 		"s390x":   "binary-s390x",
 	}
+
+  // Step one: install Packages file into TmpDir
 	url := uriBase + "dists/" + "buster/" + "main/" + archToURL[runtime.GOARCH] + "/Packages.gz"
 
-	err := downloadFile(url, outputDir)
-	if err != nil {
-		fmt.Errorf("Error downloading Packages.gz: %v\n", err)
-	}
+  downloadFinished := make(chan bool)
+  downloadSpinnerFinished := make(chan bool)
+  go spinnerLoading("Step (1/2): Download Package File", downloadFinished, downloadSpinnerFinished)
+  go func(){
+    err := downloadFile(url, outputDir)
+    if err != nil {
+      fmt.Errorf("Error downloading Packages.gz: %v\n", err)
+    }
+    downloadFinished <- true
+  }()
+
+  <-downloadSpinnerFinished
+
 
   gzFileName := filepath.Join(outputDir, filepath.Base(url))
 	targetFileName := gzFileName[:len(gzFileName)-len(".gz")]
 
-  err = gunzipFile(gzFileName, targetFileName)
+  err := gunzipFile(gzFileName, targetFileName)
 	if err != nil {
 		fmt.Errorf("failed to decompress Packages file: %v", err)
 	}
-
 
   // Step two: Update the database with the new entries
 
@@ -111,12 +121,21 @@ func UpdatePackages(uriBase string, outputDir string, DbPath string) {
     fmt.Errorf("failed to create packages table: %v", err)
   }
 
-  err = addPackagesToDatabase(freshPackages, db)
-  if err != nil{
-    fmt.Errorf("failed to add packages to DB: %v", err)
-  }
-	defer db.Close()
+  databaseFinished := make(chan bool)
+  databaseSpinnerFinished := make(chan bool)
 
+  go spinnerLoading("Step (2/2): Update Database", databaseFinished, databaseSpinnerFinished)
+  go func(){
+    err = addPackagesToDatabase(freshPackages, db)
+    if err != nil{
+      fmt.Errorf("failed to add packages to DB: %v", err)
+    }
+    databaseFinished <- true
+  }()
+
+  <-databaseSpinnerFinished
+
+	defer db.Close()
   }
 
 func downloadFile(url, outputDir string) error {
@@ -279,8 +298,26 @@ func addPackagesToDatabase(freshPackages []Package, db *sql.DB) (error){
       if err != nil {
         return err
       }
-      fmt.Printf("Inserted or updated package: %s\n", pkg.Name)
     }
 
   return nil
+}
+
+
+func spinnerLoading(message string, done chan bool, spinnerDone chan bool) {
+	// Define a set of spinner characters
+	spinChars := []rune{'|', '/', '-', '\\'}
+	i := 0
+	for {
+		select {
+		case <-done:
+      fmt.Printf(" \u2713 \n")
+      spinnerDone <- true
+			return
+		default:
+			fmt.Printf("\r%c %s", spinChars[i], message)
+			i = (i + 1) % len(spinChars)
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
 }
