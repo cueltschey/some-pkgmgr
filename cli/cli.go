@@ -1,6 +1,6 @@
 // main.go
 
-package main
+package cli
 
 import (
     "fmt"
@@ -26,7 +26,7 @@ type DatabaseConfig struct {
     Name     string `yaml:"name"`
 }
 
-func main() {
+func Run() {
     // Specify the path to your YAML config file
     filename := "config.yml"
 
