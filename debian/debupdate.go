@@ -1,4 +1,4 @@
-package deblist
+package debupdate
 
 import (
 	"compress/gzip"
