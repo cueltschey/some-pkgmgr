@@ -86,6 +86,12 @@ func recursiveInstall(curDir string, destDir string) error {
       }
     }
     if fileInfo.IsDir() {
+      if _, err := os.Stat(filepath.Join(destDir, file.Name())); os.IsNotExist(err) {
+          err = os.MkdirAll(filepath.Join(destDir, file.Name()), 0755)
+          if err != nil {
+            return fmt.Errorf("failed to create output directory: %v", err)
+          }
+      }
       recursiveInstall(filepath.Join(curDir, file.Name()), filepath.Join(destDir, file.Name()))
     } else {
       fmt.Printf("Installing %s to %s\n", file.Name(), destDir)
@@ -106,7 +112,7 @@ func recursiveInstall(curDir string, destDir string) error {
         return fmt.Errorf("Failed to copy %s to %s: ", srcFile, destFile)
       }
       
-      if strings.Contains(curDir, "usr/bin") || strings.Contains(curDir,"usr/sbin") {
+      if !strings.Contains(file.Name(), ".") {
         err = os.Chmod(filepath.Join(destDir, file.Name()), 0777)
       }
 
