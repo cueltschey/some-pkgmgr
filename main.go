@@ -51,6 +51,7 @@ func main() {
     }
 
     action := ""
+    packageName := ""
     for i := 0; i < argc - 1; i++ {
         if argv[i] == "-d" || strings.HasPrefix(argv[i], "--debian="){
             if argv[i] == "-d" {
@@ -61,6 +62,9 @@ func main() {
                     action = parts[1]
                 }
             }
+            if i + 3 < argc{
+              packageName = argv[i+2]
+            }
             break
         }
     }
@@ -68,7 +72,7 @@ func main() {
     switch action {
     case "install":
         fmt.Println("Installing Debian packages...")
-        debian.InstallPackage(config.Debian.DebUri, config.Debian.TmpDir, config.Debian.DbPath, "zypper")
+        debian.InstallPackage(config.Debian.DebUri, config.Debian.TmpDir, config.Debian.DbPath, packageName)
     case "update":
         fmt.Printf("Updating Packages in Database: %s\n", config.Debian.DbPath )
         debian.UpdatePackages(config.Debian.DebUri, config.Debian.TmpDir, config.Debian.DbPath)

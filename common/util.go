@@ -155,4 +155,3 @@ func ExecuteCommand(cmdPath string, command string, args ...string) (string, err
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
-
