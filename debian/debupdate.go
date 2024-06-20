@@ -1,17 +1,16 @@
-package debupdate
+package debian
 
 import (
-	"compress/gzip"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
-	"path/filepath"
   "runtime"
   "bufio"
   "database/sql"
   "strings"
   "time"
+  "path/filepath"
+
+  "some-pkgmgr/common"
 
   _ "github.com/mattn/go-sqlite3"
 )
@@ -69,7 +68,7 @@ const insertPackageSQL = `
         Priority, Filename, Size, MD5sum, SHA256
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 `
-func UpdatePackages(uriBase string, outputDir string, DbPath string) {
+func UpdatePackages(uriBase string, tmpDir string, DbPath string) {
 
   archToURL := map[string]string{
 		"amd64":   "binary-amd64",
@@ -87,7 +86,7 @@ func UpdatePackages(uriBase string, outputDir string, DbPath string) {
   downloadSpinnerFinished := make(chan bool)
   go spinnerLoading("Step (1/2): Download Package File", downloadFinished, downloadSpinnerFinished)
   go func(){
-    err := downloadFile(url, outputDir)
+    err := util.DownloadFile(url, tmpDir)
     if err != nil {
       fmt.Errorf("Error downloading Packages.gz: %v\n", err)
     }
@@ -97,10 +96,10 @@ func UpdatePackages(uriBase string, outputDir string, DbPath string) {
   <-downloadSpinnerFinished
 
 
-  gzFileName := filepath.Join(outputDir, filepath.Base(url))
+  gzFileName := filepath.Join(tmpDir, filepath.Base(url))
 	targetFileName := gzFileName[:len(gzFileName)-len(".gz")]
 
-  err := gunzipFile(gzFileName, targetFileName)
+  err := util.GunzipFile(gzFileName, targetFileName)
 	if err != nil {
 		fmt.Errorf("failed to decompress Packages file: %v", err)
 	}
@@ -136,65 +135,9 @@ func UpdatePackages(uriBase string, outputDir string, DbPath string) {
   <-databaseSpinnerFinished
 
 	defer db.Close()
+  os.RemoveAll(tmpDir)
   }
 
-func downloadFile(url, outputDir string) error {
-	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
-		err = os.MkdirAll(outputDir, 0755)
-		if err != nil {
-      return fmt.Errorf("failed to create output directory: %v", err)
-		}
-	}
-	fileName := filepath.Base(url)
-
-	resp, err := http.Get(url)
-	if err != nil {
-		return fmt.Errorf("failed to get file: %v", err)
-	}
-	defer resp.Body.Close()
-
-	outFilePath := filepath.Join(outputDir, fileName)
-	outFile, err := os.Create(outFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to create file: %v", err)
-	}
-	defer outFile.Close()
-
-	_, err = io.Copy(outFile, resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to write to file: %v", err)
-	}
-
-	outFile.Close()
-
-	return nil
-}
-
-func gunzipFile(filePath string, targetFileName string) error {
-	gzipFile, err := os.Open(filePath)
-	if err != nil {
-		return fmt.Errorf("failed to open gzip file: %v", err)
-	}
-	defer gzipFile.Close()
-
-	gzipReader, err := gzip.NewReader(gzipFile)
-	if err != nil {
-		return fmt.Errorf("failed to create gzip reader: %v", err)
-	}
-	defer gzipReader.Close()
-
-	outFile, err := os.Create(targetFileName)
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %v", err)
-	}
-	defer outFile.Close()
-
-	_, err = io.Copy(outFile, gzipReader)
-	if err != nil {
-		return fmt.Errorf("failed to write to output file: %v", err)
-	}
-  return nil
-}
 
 
 func parsePackagesFile(filename string) ([]Package, error) {

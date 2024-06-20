@@ -5,11 +5,11 @@ import (
     "io/ioutil"
     "log"
     "os"
+    "strings"
 
     "some-pkgmgr/debian"
 
     "gopkg.in/yaml.v3"
-    "github.com/spf13/cobra"
 
 )
 
@@ -27,16 +27,6 @@ type DebConfig struct {
 }
 
 // Define root commands
- var rootCmd = &cobra.Command{
-        Use:   "some-pkgpgr",
-        Short: "Some random package manager",
-        Long: "A simple but fast package manager for debian, rpm, and AUR packages",
-        Run: func(cmd *cobra.Command, args []string) {
-            fmt.Println("<HELP message>")
-        },
-    }
-
-
 
 func main() {
     // read configuration
@@ -54,19 +44,37 @@ func main() {
     // Read in CLI arguments to execute commands
    
 
-    var debianCmd = &cobra.Command{
-        Use:   "debian",
-        Short: "Install and Update debian packages",
-        Long:  "Installs debian packages on the system similarly to apt",
-        Run: func(cmd *cobra.Command, args []string) {
-            fmt.Printf("HERE!")
-            debupdate.UpdatePackages(config.Debian.DebUri, config.Debian.TmpDir, config.Debian.DbPath)
-        },
+    argc := len(os.Args)
+    argv := os.Args[1:]
+    if argc < 2 {
+      os.Exit(1)
     }
 
-    debianCmd.PersistentFlags().StringP("action", "d", "INSTALL", "specify the debian operation <install | update>")
-    if err := rootCmd.Execute(); err != nil {
-        fmt.Println(err)
-        os.Exit(1)
+    action := ""
+    for i := 0; i < argc - 1; i++ {
+        if argv[i] == "-d" || strings.HasPrefix(argv[i], "--debian="){
+            if argv[i] == "-d" {
+                action = argv[i+1]
+            } else {
+                parts := strings.SplitN(argv[i], "=", 2)
+                if len(parts) == 2 {
+                    action = parts[1]
+                }
+            }
+            break
+        }
     }
+
+    switch action {
+    case "install":
+        fmt.Println("Installing Debian packages...")
+        debian.InstallPackage(config.Debian.DebUri, config.Debian.TmpDir, config.Debian.DbPath, "zypper")
+    case "update":
+        fmt.Printf("Updating Packages in Database: %s\n", config.Debian.DbPath )
+        debian.UpdatePackages(config.Debian.DebUri, config.Debian.TmpDir, config.Debian.DbPath)
+    default:
+        fmt.Println("Invalid or missing action. Use -d <install|update> or --action=<install|update>")
+    }
+
+
 }
