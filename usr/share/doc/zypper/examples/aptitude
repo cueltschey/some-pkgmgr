@@ -1,0 +1,78 @@
+#!/usr/bin/perl -w
+# version 0.9
+# (C) 2011-2015 by Bernhard M. Wiedemann <bernhard+aptitude4zypp lsmod de>
+# License: GPL v2 or later
+
+use strict;
+my $prog=$0; $prog=~s{.*/}{};
+my @options=();
+my $option;
+foreach(@ARGV) {
+	last unless ($option || m/^-/);
+	if($option) {$option=0} # skip
+	if($_ eq "--option") {$option=1}
+	push(@options, $_);
+}
+
+my $os={};
+if(open(my $osfd, "/etc/os-release")) {
+	while(<$osfd>) {
+		m/^(\w+)="?(.*?)"?$/;
+		$os->{$1}=$2;
+	}
+	close $osfd;
+}
+
+sub os_is($)
+{
+	my ($osstr)=@_;
+	return $os->{ID} =~ m/$osstr/i || ($os->{ID_LIKE} && $os->{ID_LIKE} =~/$osstr/i);
+}
+
+my @zopt;
+my @zopt2;
+foreach(@options) {
+	shift @ARGV;
+	if($_ eq "-s" || $_ eq "--simulate") {push @zopt2, "--dry-run -y"}
+	if($_ eq "-d" || $_ eq "--download-only") {push @zopt2, "--download-only"}
+	if($_ eq "-y" || $_ eq "--assume-yes") {push @zopt, "--non-interactive"}
+	if($_ eq "-q" || $_ eq "--quiet") {push @zopt, "--quiet"}
+	if($prog eq "aptitude") {
+		if($_ eq "-V" || $_ eq "-v" || $_ eq "--verbose") {push @zopt, "--verbose"}
+	} else {
+		if($_ eq "-v" || $_ eq "--version" || $_ eq "-V" || $_ eq "--verbose-versions") {push @zopt, "--version"}
+	}
+	if($_ eq "-u") {system("zypper", "refresh")}
+	if($_ eq "--without-recommends") {push @zopt2, "--no-recommends"}
+	if($_ eq "--with-recommends") {push @zopt, "--recommends"}
+}
+
+my $action=shift;
+if($prog eq "aptitude") {
+    if(!defined($action)) {exec "/sbin/yast2", "-i"}
+} else {
+    $action||="";
+}
+
+# install, remove are the same
+if($action eq "show") {$action="info"}
+elsif($action eq "list") {$action="search"}
+elsif($action eq "purge") {$action="remove"}
+elsif($action eq "hold") {$action="addlock"}
+elsif($action eq "unhold") {$action="removelock"}
+elsif($action eq "update") {$action="refresh"}
+elsif($action eq "upgrade" || $action eq "safe-upgrade") {$action="update"}
+elsif($action eq "full-upgrade" || $action eq "dist-upgrade") {$action="dist-upgrade"}
+elsif($action eq "download") {$action="install"; unshift(@zopt2, "--download-only");}
+elsif($action eq "reinstall") {$action="install"; unshift(@zopt2, "--force");}
+elsif($action eq "source") {$action="source-install"}
+elsif($action=~m/build-dep(?:ends)?/) {$action="source-install"; unshift(@zopt2, "--build-deps-only");}
+elsif($action eq "changelog") {exec qw"rpm -q --changelog", @ARGV}
+elsif($action=~m/markauto|unmarkauto|forbid-version|autoclean|autoremove|check|why|why-not/) { print "aptitude '$action' unavailabe in zypper\n"; exit 0 }
+
+foreach my $map (</etc/zypp/apt-packagemap.d/*.pm>) {
+	do $map;
+}
+
+#system "echo", "zypper", @zopt, $action, @zopt2, @ARGV;
+exec "zypper", @zopt, $action, @zopt2, @ARGV;
