@@ -14,14 +14,27 @@ import (
   _ "github.com/mattn/go-sqlite3"
 )
 
+const createInstallTableSQL = `
+CREATE TABLE IF NOT EXISTS installed (
+  PackageName TEXT,
+  FileName TEXT
+);`
+
+const insertInstallSQL = `
+INSERT INTO installed (PackageName, Filename) VALUES (?, ?);
+`
+
 func InstallPackage(uriBase string, tmpDir string, dbPath string, packageName string){
 
-  // Step 1: Get package info from the database
+    // Step 1: Get package info from the database
   db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
 	}
-	defer db.Close()
+  _, err = db.Exec(createInstallTableSQL)
+    if err != nil {
+    fmt.Errorf("failed to create packages table: %v", err)
+  }
 
   var packageURL string
   query := "SELECT Filename FROM packages WHERE Name = ?"
@@ -61,11 +74,31 @@ func InstallPackage(uriBase string, tmpDir string, dbPath string, packageName st
 
   // Step 4: Install binary to root
   
-  recursiveInstall(tmpDir + "/bin", "/")
+  recursiveInstall(tmpDir + "/bin", "/", db, packageName)
 }
 
 
-func recursiveInstall(curDir string, destDir string) error {
+func recursiveInstall(curDir string, destDir string, db *sql.DB, packageName string) error {
+
+  // Setup database inserts
+  tx, err := db.Begin()
+    if err != nil {
+        return err
+    }
+    defer func() {
+        if err != nil {
+            tx.Rollback()
+        } else {
+            tx.Commit()
+        }
+    }()
+
+    stmt, err := tx.Prepare(insertInstallSQL)
+    if err != nil {
+        return err
+    }
+  defer stmt.Close()
+
   dir, err := os.Open(curDir)
   if err != nil {
     return fmt.Errorf("Failed to open %s: ", curDir)
@@ -92,7 +125,7 @@ func recursiveInstall(curDir string, destDir string) error {
             return fmt.Errorf("failed to create output directory: %v", err)
           }
       }
-      recursiveInstall(filepath.Join(curDir, file.Name()), filepath.Join(destDir, file.Name()))
+      recursiveInstall(filepath.Join(curDir, file.Name()), filepath.Join(destDir, file.Name()), db, packageName)
     } else {
       fmt.Printf("Installing %s to %s\n", file.Name(), destDir)
       srcFile, err := os.Open(filepath.Join(curDir,file.Name()))
@@ -119,6 +152,11 @@ func recursiveInstall(curDir string, destDir string) error {
       err = destFile.Sync()
       if err != nil {
         return fmt.Errorf("Failed to sync file %s: ", destFile)
+      }
+
+      _, err = stmt.Exec(packageName, filepath.Join(destDir, file.Name()))
+      if err != nil {
+        return fmt.Errorf("Failed Record File Insert %s: ", destFile)
       }
   
     }
