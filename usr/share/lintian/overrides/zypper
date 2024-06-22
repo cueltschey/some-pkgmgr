@@ -1,4 +1,0 @@
-# Upstream won't break up URLs in man pages for the sake of being
-# able to copy+paste them.
-# See: https://github.com/openSUSE/zypper/issues/73
-zypper: manpage-has-errors-from-man
