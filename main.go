@@ -30,7 +30,7 @@ type DebConfig struct {
 
 func main() {
     // read configuration
-    filename := "config.yml"
+    filename := "/etc/some/config.yml"
     configFile, err := ioutil.ReadFile(filename)
     if err != nil {
         log.Fatalf("Error Reading config.yml: %v", err)

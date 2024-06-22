@@ -1,8 +1,8 @@
 debian:
   deb-uri: http://deb.debian.org/debian/
   keyring: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-  tmpdir: /home/charles/testing
-  dbpath: ./test.db
+  tmpdir: /tmp/
+  dbpath: /var/some/pkg.db
 
   
 
