@@ -71,13 +71,16 @@ func main() {
 
     switch action {
     case "install":
-        fmt.Println("Installing Debian packages...")
+        fmt.Printf("Installing Debian package: %s\n", packageName)
         debian.InstallPackage(config.Debian.DebUri, config.Debian.TmpDir, config.Debian.DbPath, packageName)
     case "update":
         fmt.Printf("Updating Packages in Database: %s\n", config.Debian.DbPath )
         debian.UpdatePackages(config.Debian.DebUri, config.Debian.TmpDir, config.Debian.DbPath)
+    case "remove":
+        fmt.Printf("Removing Debian package: %s\n", packageName)
+        debian.RemovePackage(config.Debian.DbPath, packageName)
     default:
-        fmt.Println("Invalid or missing action. Use -d <install|update> or --action=<install|update>")
+        fmt.Println("Invalid or missing action. Use -d <install|update|remove> or --action=<install|update|remove>")
     }
 
 
