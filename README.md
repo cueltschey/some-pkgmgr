@@ -34,9 +34,9 @@ sudo cp -v some-pkgmgr /usr/bin/some
 
 Paths used by some package manager are located in config.yml
 
-**deb-uri** -> base uri for debian packages
-**keyring** -> your system gpg keyring for ubuntu
-**tmpdir** -> directory for extracting temporary files
-**dbpath** -> where to put the package database
+- **deb-uri** -> base uri for debian packages
+- **keyring** -> your system gpg keyring for ubuntu
+- **tmpdir** -> directory for extracting temporary files
+- **dbpath** -> where to put the package database
 
 
